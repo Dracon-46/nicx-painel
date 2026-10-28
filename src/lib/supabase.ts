@@ -15,7 +15,9 @@ let client: SupabaseClient | null = null;
 export function getClient(): SupabaseClient {
   client ??= createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: {
+      // A sessão vive só enquanto a aba estiver aberta: fechou, entra de novo.
       persistSession: true,
+      storage: window.sessionStorage,
       autoRefreshToken: true,
       // O link de confirmação do e-mail volta com a sessão no endereço.
       detectSessionInUrl: true,

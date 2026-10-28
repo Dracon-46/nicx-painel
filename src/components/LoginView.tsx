@@ -10,7 +10,15 @@ import { Brand, Button, EASE, RevealWords, ThemeToggle } from './ui';
  * Entrada do painel. Só login: as contas de administrador são criadas à mão
  * e o cadastro está desligado no Supabase.
  */
-export function LoginView({ client, notice }: { client: SupabaseClient; notice?: string | null }) {
+export function LoginView({
+  client,
+  notice,
+  onSignedIn,
+}: {
+  client: SupabaseClient;
+  notice?: string | null;
+  onSignedIn?: () => void;
+}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -33,6 +41,8 @@ export function LoginView({ client, notice }: { client: SupabaseClient; notice?:
       if (authError) {
         setError(painelErrorMessage(authError));
         setShake((n) => n + 1);
+      } else {
+        onSignedIn?.();
       }
     } catch (e) {
       setError(painelErrorMessage(e));

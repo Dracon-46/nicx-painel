@@ -8,6 +8,7 @@ import {
   fetchPainelData,
   isEmpty,
   PainelAccessError,
+  fetchAdminStatus,
   painelErrorMessage,
   relativeChange,
   todayInSaoPaulo,
@@ -27,6 +28,7 @@ function emptyData(overrides: Partial<PainelData> = {}): PainelData {
     funnel: null,
     consent: [],
     recent: [],
+    accesses: [],
     ...overrides,
   };
 }
@@ -125,5 +127,19 @@ describe('mensagens de erro em português', () => {
     expect(painelErrorMessage({ code: 'invalid_credentials' })).toBe('E-mail ou senha incorretos.');
     expect(painelErrorMessage({ message: 'Email not confirmed' })).toMatch(/não confirmado/);
     expect(painelErrorMessage({ name: 'AuthRetryableFetchError', message: 'Failed to fetch' })).toMatch(/Sem conexão/);
+  });
+});
+
+describe('segundo fator', () => {
+  it('lê o status de administrador e o nível da sessão', async () => {
+    const client = fakeClient({ nicx_admin_status: { data: { admin: true, aal: 'aal1' }, error: null } });
+    expect(await fetchAdminStatus(client)).toEqual({ admin: true, aal: 'aal1' });
+    const verified = fakeClient({ nicx_admin_status: { data: { admin: true, aal: 'aal2' }, error: null } });
+    expect((await fetchAdminStatus(verified)).aal).toBe('aal2');
+  });
+
+  it('resposta estranha não vira administrador', async () => {
+    const client = fakeClient({ nicx_admin_status: { data: { admin: 'sim', aal: 'aal9' }, error: null } });
+    expect(await fetchAdminStatus(client)).toEqual({ admin: false, aal: 'aal1' });
   });
 });

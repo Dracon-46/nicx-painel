@@ -61,3 +61,14 @@ describe('tela de login', () => {
     expect(senha.type).toBe('text');
   });
 });
+
+describe('QR do segundo fator', () => {
+  it('codifica o SVG mesmo quando o supabase-js já pôs o prefixo cru', async () => {
+    const { qrSource } = await import('./MfaView');
+    const svg = '<svg><rect fill="#fff"/></svg>';
+    const expected = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    expect(qrSource(`data:image/svg+xml;utf-8,${svg}`)).toBe(expected);
+    expect(qrSource(svg)).toBe(expected);
+    expect(qrSource('data:image/png;base64,AAAA')).toBe('data:image/png;base64,AAAA');
+  });
+});

@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowUpRight, Minus, RefreshCw } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AUDIT_LABELS,
   computeKpis,
   dailySeries,
   EMPTY_DATA_MESSAGE,
@@ -635,6 +636,36 @@ function Body({ data }: { data: PainelData }) {
           </div>
         </Reveal>
       </section>
+
+      <section aria-labelledby="sec-acessos">
+        <SectionHeading index="06" id="sec-acessos" title="Acessos ao painel" note="Os 30 mais novos. Todo acesso fica registrado." />
+        <Reveal>
+          <div className="card overflow-hidden">
+            {data.accesses.length === 0 ? (
+              <EmptyState compact>Nenhum acesso registrado ainda.</EmptyState>
+            ) : (
+              <div className="max-h-[420px] overflow-auto">
+                <DataTable head={['Quando', 'Conta', 'O que fez', 'Verificação', 'IP', 'Navegador']} caption="Acessos ao painel">
+                  {data.accesses.map((r) => (
+                    <tr key={r.id}>
+                      <td className="whitespace-nowrap font-mono text-xs tabular">{fmtDateTime(r.at)}</td>
+                      <td className="whitespace-nowrap font-mono text-xs">{r.email}</td>
+                      <td className="whitespace-nowrap">{AUDIT_LABELS[r.action] ?? r.action}</td>
+                      <td className="whitespace-nowrap">
+                        <span className={r.aal === 'aal2' ? 'text-success' : 'text-subtle'}>
+                          {r.aal === 'aal2' ? 'Senha + código' : 'Só senha'}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap font-mono text-xs text-muted">{r.ip ?? '—'}</td>
+                      <td className="text-xs text-muted">{browserOf(r.user_agent)}</td>
+                    </tr>
+                  ))}
+                </DataTable>
+              </div>
+            )}
+          </div>
+        </Reveal>
+      </section>
     </div>
   );
 }
@@ -645,4 +676,32 @@ function eventColor(event: string): string {
   if (event === 'error_shown_to_user') return 'var(--danger)';
   if (event === 'analytics_consent') return 'var(--amber)';
   return 'var(--accent)';
+}
+
+/** "Chrome 130 · Windows" a partir do user agent, sem guardar mais nada. */
+function browserOf(ua: string | null): string {
+  if (!ua) return '—';
+  const patterns: [RegExp, string][] = [
+    [/Edg\/(\d+)/, 'Edge'],
+    [/Firefox\/(\d+)/, 'Firefox'],
+    [/Chrome\/(\d+)/, 'Chrome'],
+    [/Version\/(\d+).*Safari/, 'Safari'],
+  ];
+  let browser = 'Navegador';
+  for (const [re, name] of patterns) {
+    const version = re.exec(ua)?.[1];
+    if (version) {
+      browser = `${name} ${version}`;
+      break;
+    }
+  }
+  const systems: [RegExp, string][] = [
+    [/Windows/, 'Windows'],
+    [/Android/, 'Android'],
+    [/iPhone|iPad/, 'iOS'],
+    [/Mac OS/, 'macOS'],
+    [/Linux/, 'Linux'],
+  ];
+  const os = systems.find(([re]) => re.test(ua))?.[1];
+  return os ? `${browser} · ${os}` : browser;
 }

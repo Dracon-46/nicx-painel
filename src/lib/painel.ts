@@ -38,6 +38,12 @@ const AUTH_MESSAGES: Record<string, string> = {
   session_not_found: 'Sua sessão expirou. Entre de novo.',
   refresh_token_not_found: 'Sua sessão expirou. Entre de novo.',
   request_timeout: 'O servidor da Falkyria demorou demais para responder. Tente de novo.',
+  mfa_verification_failed: 'Código incorreto. Confira o app autenticador e tente de novo.',
+  mfa_challenge_expired: 'O código expirou. Digite o código atual do app.',
+  mfa_verification_rejected: 'Código recusado. Digite o código atual do app.',
+  mfa_factor_name_conflict: 'Já existe um app autenticador cadastrado. Recarregue a página.',
+  mfa_totp_enroll_not_enabled: 'O segundo fator está desativado no servidor da Falkyria.',
+  insufficient_aal: 'Confirme o código do app autenticador para continuar.',
 };
 
 interface ErrorLike {
@@ -167,6 +173,8 @@ export interface PainelData {
   funnel: InstallFunnel | null;
   consent: ConsentRow[];
   recent: EventRow[];
+  /** Últimos acessos ao painel (auditoria). */
+  accesses: AuditRow[];
 }
 
 const num = (v: unknown): number => {
@@ -240,12 +248,50 @@ function summaryOf(result: QueryResult): {
   };
 }
 
-/** Whether the signed-in user is a Falkyria administrator. */
-export async function checkIsAdmin(client: SupabaseClient): Promise<boolean> {
-  const { data, error } = await client.rpc('nicx_is_admin');
-  if (error) throw new Error(painelErrorMessage(error));
-  return data === true;
+export interface AdminStatus {
+  /** E-mail na lista de administradores e confirmado. */
+  admin: boolean;
+  /** Nível da sessão: "aal2" depois do código do app autenticador. */
+  aal: 'aal1' | 'aal2';
 }
+
+/** O banco diz se a conta é de administrador e se já passou do segundo fator. */
+export async function fetchAdminStatus(client: SupabaseClient): Promise<AdminStatus> {
+  const { data, error } = await client.rpc('nicx_admin_status');
+  if (error) throw new Error(painelErrorMessage(error));
+  const raw = (data ?? {}) as Raw;
+  return { admin: raw.admin === true, aal: raw.aal === 'aal2' ? 'aal2' : 'aal1' };
+}
+
+export type AuditAction = 'login' | 'mfa_enrolled' | 'mfa_verified' | 'view' | 'logout' | 'idle_logout';
+
+/** Registra um acesso ao painel. Falha de auditoria não bloqueia o uso. */
+export async function audit(client: SupabaseClient, action: AuditAction): Promise<void> {
+  try {
+    await client.rpc('nicx_audit', { p_action: action, p_user_agent: navigator.userAgent.slice(0, 300) });
+  } catch {
+    // Registro é melhor esforço.
+  }
+}
+
+export interface AuditRow {
+  id: number;
+  at: string;
+  email: string;
+  action: AuditAction;
+  aal: string | null;
+  ip: string | null;
+  user_agent: string | null;
+}
+
+export const AUDIT_LABELS: Record<string, string> = {
+  login: 'Entrou com a senha',
+  mfa_enrolled: 'Cadastrou o app autenticador',
+  mfa_verified: 'Confirmou o código',
+  view: 'Abriu os dados',
+  logout: 'Saiu',
+  idle_logout: 'Saiu por inatividade',
+};
 
 /**
  * Load everything the dashboard shows. Daily views cover twice the period
@@ -257,7 +303,7 @@ export async function fetchPainelData(
   today: string = todayInSaoPaulo(),
 ): Promise<PainelData> {
   const since = addDays(today, -(2 * period - 1));
-  const [activity, usage, summary, platforms, funnel, consent, recent] =
+  const [activity, usage, summary, platforms, funnel, consent, recent, accesses] =
     await Promise.all([
       client.from('nicx_daily_activity').select('*').gte('day', since).order('day'),
       client.from('nicx_daily_usage').select('*').gte('day', since).order('day'),
@@ -270,6 +316,11 @@ export async function fetchPainelData(
         .select('id,received_at,anon_id,event,properties,app_version,platform,os')
         .order('received_at', { ascending: false })
         .limit(50),
+      client
+        .from('nicx_admin_audit')
+        .select('id,at,email,action,aal,ip,user_agent')
+        .order('at', { ascending: false })
+        .limit(30),
     ]);
 
   const funnelRow = rowsOf(funnel)[0];
@@ -342,6 +393,15 @@ export async function fetchPainelData(
       app_version: strOrNull(r.app_version),
       platform: strOrNull(r.platform),
       os: strOrNull(r.os),
+    })),
+    accesses: rowsOf(accesses).map((r) => ({
+      id: num(r.id),
+      at: str(r.at),
+      email: str(r.email),
+      action: str(r.action) as AuditAction,
+      aal: strOrNull(r.aal),
+      ip: strOrNull(r.ip),
+      user_agent: strOrNull(r.user_agent),
     })),
   };
 }
