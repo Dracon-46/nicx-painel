@@ -158,6 +158,32 @@ export interface EventRow {
   os: string | null;
 }
 
+export type LogLevel = 'warning' | 'error' | 'critical';
+
+/** Um tipo de aviso/erro dos últimos 30 dias (view nicx_log_groups). */
+export interface LogGroup {
+  fingerprint: string;
+  level: LogLevel;
+  logger: string;
+  message: string;
+  exc_type: string | null;
+  location: string | null;
+  occurrences: number;
+  installations: number;
+  versions: string[];
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+}
+
+/** Evento de saúde do servidor (server_started / server_health). */
+export interface HealthEvent {
+  received_at: string;
+  anon_id: string;
+  event: 'server_started' | 'server_health';
+  properties: Record<string, unknown>;
+  app_version: string | null;
+}
+
 export interface PainelData {
   period: Period;
   /** Last day of the period (today in São Paulo), YYYY-MM-DD. */
@@ -175,6 +201,10 @@ export interface PainelData {
   recent: EventRow[];
   /** Últimos acessos ao painel (auditoria). */
   accesses: AuditRow[];
+  /** Avisos e erros agrupados, últimos 30 dias. */
+  logs: LogGroup[];
+  /** Saúde do servidor, últimos 30 dias. */
+  health: HealthEvent[];
 }
 
 const num = (v: unknown): number => {
@@ -303,7 +333,7 @@ export async function fetchPainelData(
   today: string = todayInSaoPaulo(),
 ): Promise<PainelData> {
   const since = addDays(today, -(2 * period - 1));
-  const [activity, usage, summary, platforms, funnel, consent, recent, accesses] =
+  const [activity, usage, summary, platforms, funnel, consent, recent, accesses, logs, health] =
     await Promise.all([
       client.from('nicx_daily_activity').select('*').gte('day', since).order('day'),
       client.from('nicx_daily_usage').select('*').gte('day', since).order('day'),
@@ -321,6 +351,14 @@ export async function fetchPainelData(
         .select('id,at,email,action,aal,ip,user_agent')
         .order('at', { ascending: false })
         .limit(30),
+      client.from('nicx_log_groups').select('*').order('last_seen_at', { ascending: false }).limit(200),
+      client
+        .from('nicx_events')
+        .select('received_at,anon_id,event,properties,app_version')
+        .in('event', ['server_started', 'server_health'])
+        .gte('received_at', `${addDays(today, -29)}T00:00:00-03:00`)
+        .order('received_at', { ascending: false })
+        .limit(1000),
     ]);
 
   const funnelRow = rowsOf(funnel)[0];
@@ -393,6 +431,31 @@ export async function fetchPainelData(
       app_version: strOrNull(r.app_version),
       platform: strOrNull(r.platform),
       os: strOrNull(r.os),
+    })),
+    logs: rowsOf(logs).map((r) => ({
+      fingerprint: str(r.fingerprint),
+      level: (LOG_LEVELS.includes(str(r.level) as LogLevel) ? str(r.level) : 'warning') as LogLevel,
+      logger: str(r.logger),
+      message: str(r.message),
+      exc_type: strOrNull(r.exc_type),
+      location: strOrNull(r.location),
+      occurrences: num(r.occurrences),
+      installations: num(r.installations),
+      versions: Array.isArray(r.versions)
+        ? (r.versions as unknown[]).filter((v): v is string => typeof v === 'string')
+        : [],
+      first_seen_at: strOrNull(r.first_seen_at),
+      last_seen_at: strOrNull(r.last_seen_at),
+    })),
+    health: rowsOf(health).map((r) => ({
+      received_at: str(r.received_at),
+      anon_id: str(r.anon_id),
+      event: (str(r.event) === 'server_started' ? 'server_started' : 'server_health') as HealthEvent['event'],
+      properties:
+        r.properties && typeof r.properties === 'object' && !Array.isArray(r.properties)
+          ? (r.properties as Record<string, unknown>)
+          : {},
+      app_version: strOrNull(r.app_version),
     })),
     accesses: rowsOf(accesses).map((r) => ({
       id: num(r.id),
@@ -474,6 +537,62 @@ export function relativeChange({ current, previous }: Kpi): number | null {
   return (current - previous) / previous;
 }
 
+const LOG_LEVELS: LogLevel[] = ['warning', 'error', 'critical'];
+
+export const LOG_LEVEL_LABELS: Record<LogLevel, string> = {
+  critical: 'Crítico',
+  error: 'Erro',
+  warning: 'Aviso',
+};
+
+export interface HealthSummary {
+  starts: number;
+  /** Média, em ms, do tempo para o servidor abrir. */
+  startupMs: number | null;
+  /** Em quantas aberturas o Nicx teve de ligar o Ollama. */
+  autostarted: number;
+  /** Memória usada pelo servidor do Nicx: média e pico, em MB. */
+  rssAvgMb: number | null;
+  rssMaxMb: number | null;
+  /** RAM do computador em uso, média em %. */
+  ramAvgPercent: number | null;
+  engines: { label: string; value: number }[];
+  models: { label: string; value: number }[];
+  voice: { input: number; output: number; wakeWord: number };
+}
+
+const average = (values: number[]) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
+const numbersOf = (rows: HealthEvent[], key: string) =>
+  rows.map((r) => r.properties[key]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+
+function countBy(rows: HealthEvent[], key: string): { label: string; value: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const v = r.properties[key];
+    if (typeof v === 'string' && v) counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+}
+
+/** Números da saúde do servidor no período, só do que chegou de verdade. */
+export function healthSummary(events: HealthEvent[]): HealthSummary {
+  const starts = events.filter((e) => e.event === 'server_started');
+  const checks = events.filter((e) => e.event === 'server_health');
+  const rss = numbersOf(checks, 'rss_mb');
+  const flag = (key: string) => starts.filter((e) => e.properties[key] === true).length;
+  return {
+    starts: starts.length,
+    startupMs: average(numbersOf(starts, 'startup_ms')),
+    autostarted: flag('engine_autostarted'),
+    rssAvgMb: average(rss),
+    rssMaxMb: rss.length ? Math.max(...rss) : null,
+    ramAvgPercent: average(numbersOf(checks, 'ram_percent')),
+    engines: countBy(starts, 'engine'),
+    models: countBy(starts, 'model_family'),
+    voice: { input: flag('voice_input'), output: flag('voice_output'), wakeWord: flag('wake_word') },
+  };
+}
+
 export function isEmpty(data: PainelData): boolean {
   return (
     data.activity.length === 0 &&
@@ -483,6 +602,8 @@ export function isEmpty(data: PainelData): boolean {
     data.platforms.length === 0 &&
     data.consent.length === 0 &&
     data.recent.length === 0 &&
+    data.logs.length === 0 &&
+    data.health.length === 0 &&
     (!data.funnel || Object.values(data.funnel).every((v) => v === 0))
   );
 }
@@ -543,6 +664,8 @@ export const EVENT_LABELS: Record<string, string> = {
   settings_changed: 'Configuração alterada',
   usage_daily_summary: 'Resumo diário',
   analytics_consent: 'Consentimento',
+  server_started: 'Servidor iniciou',
+  server_health: 'Saúde do servidor',
 };
 
 export const FUNNEL_STEPS: { key: keyof InstallFunnel; label: string }[] = [

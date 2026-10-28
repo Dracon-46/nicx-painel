@@ -42,6 +42,7 @@ import {
   Sparkline,
   StackedColumns,
 } from './charts';
+import { HealthSection, LogsSection } from './LogsHealth';
 import { NicxCore } from './Nicx3D/NicxCore';
 import { EASE, Reveal, RevealWords, SectionHeading } from './ui';
 
@@ -528,8 +529,12 @@ function Body({ data }: { data: PainelData }) {
         </div>
       </section>
 
+      <LogsSection index="03" logs={data.logs} />
+
+      <HealthSection index="04" health={data.health} />
+
       <section aria-labelledby="sec-historico">
-        <SectionHeading index="03" id="sec-historico" title="Desde o início" note="Totais acumulados, sem filtro de período." />
+        <SectionHeading index="05" id="sec-historico" title="Desde o início" note="Totais acumulados, sem filtro de período." />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Reveal>
             <ChartCard
@@ -573,7 +578,7 @@ function Body({ data }: { data: PainelData }) {
       </section>
 
       <section aria-labelledby="sec-plataformas">
-        <SectionHeading index="04" id="sec-plataformas" title="Plataformas e versões" note="Últimos 30 dias." />
+        <SectionHeading index="06" id="sec-plataformas" title="Plataformas e versões" note="Últimos 30 dias." />
         <Reveal>
           <div className="card overflow-hidden">
             {data.platforms.length === 0 ? (
@@ -601,7 +606,7 @@ function Body({ data }: { data: PainelData }) {
       </section>
 
       <section aria-labelledby="sec-eventos">
-        <SectionHeading index="05" id="sec-eventos" title="Eventos recentes" note="Os 50 mais novos, horário de Brasília." />
+        <SectionHeading index="07" id="sec-eventos" title="Eventos recentes" note="Os 50 mais novos, horário de Brasília." />
         <Reveal>
           <div className="card overflow-hidden">
             {data.recent.length === 0 ? (
@@ -638,7 +643,7 @@ function Body({ data }: { data: PainelData }) {
       </section>
 
       <section aria-labelledby="sec-acessos">
-        <SectionHeading index="06" id="sec-acessos" title="Acessos ao painel" note="Os 30 mais novos. Todo acesso fica registrado." />
+        <SectionHeading index="08" id="sec-acessos" title="Acessos ao painel" note="Os 30 mais novos. Todo acesso fica registrado." />
         <Reveal>
           <div className="card overflow-hidden">
             {data.accesses.length === 0 ? (

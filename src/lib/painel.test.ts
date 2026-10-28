@@ -9,6 +9,7 @@ import {
   isEmpty,
   PainelAccessError,
   fetchAdminStatus,
+  healthSummary,
   painelErrorMessage,
   relativeChange,
   todayInSaoPaulo,
@@ -29,6 +30,8 @@ function emptyData(overrides: Partial<PainelData> = {}): PainelData {
     consent: [],
     recent: [],
     accesses: [],
+    logs: [],
+    health: [],
     ...overrides,
   };
 }
@@ -38,7 +41,7 @@ function fakeClient(results: Record<string, { data: unknown; error: unknown }>):
   const query = (name: string) => {
     const result = results[name] ?? { data: [], error: null };
     const chain: Record<string, unknown> = {};
-    for (const method of ['select', 'gte', 'order', 'limit']) chain[method] = () => chain;
+    for (const method of ['select', 'gte', 'in', 'order', 'limit']) chain[method] = () => chain;
     chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
     return chain;
   };
@@ -141,5 +144,38 @@ describe('segundo fator', () => {
   it('resposta estranha não vira administrador', async () => {
     const client = fakeClient({ nicx_admin_status: { data: { admin: 'sim', aal: 'aal9' }, error: null } });
     expect(await fetchAdminStatus(client)).toEqual({ admin: false, aal: 'aal1' });
+  });
+});
+
+describe('saúde do servidor', () => {
+  it('resume aberturas, memória e motores', () => {
+    const at = '2026-10-28T10:00:00Z';
+    const ev = (event: 'server_started' | 'server_health', properties: Record<string, unknown>) => ({
+      received_at: at,
+      anon_id: 'a',
+      event,
+      properties,
+      app_version: '1.0.0',
+    });
+    const summary = healthSummary([
+      ev('server_started', { engine: 'ollama', model_family: 'qwen3.5', startup_ms: 8000, engine_autostarted: true, voice_input: true }),
+      ev('server_started', { engine: 'ollama', model_family: 'llama3.2', startup_ms: 4000, engine_autostarted: false }),
+      ev('server_health', { rss_mb: 300, ram_percent: 50 }),
+      ev('server_health', { rss_mb: 500, ram_percent: 60 }),
+    ]);
+    expect(summary.starts).toBe(2);
+    expect(summary.startupMs).toBe(6000);
+    expect(summary.autostarted).toBe(1);
+    expect(summary.rssAvgMb).toBe(400);
+    expect(summary.rssMaxMb).toBe(500);
+    expect(summary.ramAvgPercent).toBe(55);
+    expect(summary.engines).toEqual([{ label: 'ollama', value: 2 }]);
+    expect(summary.voice.input).toBe(1);
+  });
+
+  it('sem eventos, sem números inventados', () => {
+    const summary = healthSummary([]);
+    expect(summary.startupMs).toBeNull();
+    expect(summary.rssAvgMb).toBeNull();
   });
 });
