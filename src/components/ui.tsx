@@ -2,6 +2,7 @@ import { Loader2, Monitor, Moon, Sun } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { useTheme } from '../lib/theme';
+import { FalkyriaLogo } from './FalkyriaLogo';
 
 export const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -11,8 +12,8 @@ export const EASE = [0.16, 1, 0.3, 1] as const;
 
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="inline-flex items-baseline gap-2 select-none">
-      <span className="signature-dot translate-y-[-0.08em]" aria-hidden="true" />
+    <span className="inline-flex items-center gap-2 select-none">
+      <FalkyriaLogo className="h-[1.3em] w-auto text-ink" />
       <span className="font-semibold tracking-tight text-ink">Falkyria</span>
       {!compact && (
         <>
