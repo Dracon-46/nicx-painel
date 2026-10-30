@@ -19,8 +19,8 @@ rmSync(join(dist, '.git'), { recursive: true, force: true });
 git('init', '-q', '-b', 'gh-pages');
 git('add', '-A');
 // Sempre na conta pessoal, qualquer que seja o git config da máquina.
-git('-c', 'user.name=Arthur G. Camzano', '-c', 'user.email=arthurgaspare@gmail.com',
-  'commit', '-q', '-m', 'Publicar Painel Falkyria');
+git('-c', 'user.name=Arthur Gaspare Camzano', '-c', 'user.email=arthurgaspare@gmail.com',
+  'commit', '-q', '-m', 'chore(deploy): publica o painel');
 // Envia com o login da Dracon-46 sem trocar a conta ativa do gh.
 git('-c', 'credential.helper=',
   '-c', 'credential.helper=!f() { echo username=Dracon-46; echo "password=$(gh auth token --user Dracon-46)"; }; f',
