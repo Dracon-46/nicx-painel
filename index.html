@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39; &#39;sha256-kaxAoZwo3dYDHTMVtNY7QuVB1Qinl87E5y1m70KhX74=&#39;; style-src &#39;self&#39; &#39;unsafe-inline&#39;; img-src &#39;self&#39; data: blob:; font-src &#39;self&#39;; connect-src &#39;self&#39; https://xcazupxhoeoogcksymzg.supabase.co wss://xcazupxhoeoogcksymzg.supabase.co; worker-src &#39;self&#39; blob:; object-src &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+  <meta name="referrer" content="no-referrer">
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="author" content="Falkyria" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)" />
+  <meta name="description" content="Painel Falkyria: uso anônimo do Nicx, só para administradores." />
+  <link rel="icon" href="/nicx-painel/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/nicx-painel/favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="apple-touch-icon" href="/nicx-painel/apple-touch-icon.png" />
+  <title>Painel Falkyria</title>
+  <script>
+    // Tema antes da primeira pintura, sem piscar.
+    (function () {
+      var r = document.documentElement;
+      try {
+        var s = localStorage.getItem('nicx-painel-theme');
+        var dark = s === 'dark' || (s !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        r.classList.add(dark ? 'dark' : 'light');
+      } catch (e) {
+        r.classList.add('light');
+      }
+    })();
+  </script>
+  <script type="module" crossorigin src="/nicx-painel/assets/index-DiI5oFvG.js"></script>
+  <link rel="modulepreload" crossorigin href="/nicx-painel/assets/rolldown-runtime-XKyaHtl9.js">
+  <link rel="modulepreload" crossorigin href="/nicx-painel/assets/react-DY9UQGHZ.js">
+  <link rel="modulepreload" crossorigin href="/nicx-painel/assets/supabase-Bwm3Z89P.js">
+  <link rel="stylesheet" crossorigin href="/nicx-painel/assets/index-RlSA1VhK.css">
+</head>
+<body>
+  <div id="root"></div>
+  <noscript>O Painel Falkyria precisa de JavaScript.</noscript>
+</body>
+</html>
